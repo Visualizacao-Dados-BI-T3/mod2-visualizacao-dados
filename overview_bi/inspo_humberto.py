@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 
 # 1. Configuração da Página
 st.set_page_config(
@@ -13,7 +14,6 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     df = pd.read_csv("base_chamados_zenvia_looker.csv")
-    # Converter colunas de data para datetime
     datetime_cols = ['createdDate', 'resolvedIn', 'reopenedIn', 'closedIn']
     for col in datetime_cols:
         if col in df.columns:
@@ -27,21 +27,44 @@ except Exception as e:
     st.stop()
 
 # 3. Sidebar (Filtros Globais)
-st.sidebar.header("🔍 Filtros de Análise")
+st.sidebar.header("Filtros de Análise")
 
-# Filtro de Período do Mês
-min_date = df['createdDate'].min().date()
-max_date = df['createdDate'].max().date()
+# Garantir datas válidas removendo NaT
+valid_dates = df['createdDate'].dropna()
+if valid_dates.empty:
+    st.error("A coluna 'createdDate' não possui datas válidas.")
+    st.stop()
 
-start_date, end_date = st.sidebar.date_input(
-    "Período de Criação do Chamado",
-    value=(min_date, max_date),
-    min_value=min_date,
-    max_value=max_date
-)
+min_date = valid_dates.min().date()
+max_date = valid_dates.max().date()
+
+# Tratamento para min_date igual a max_date
+if min_date == max_date:
+    date_selection = st.sidebar.date_input(
+        "Período de Criação do Chamado",
+        value=(min_date, max_date)
+    )
+else:
+    date_selection = st.sidebar.date_input(
+        "Período de Criação do Chamado",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+# Previne quebra enquanto o usuário selecionou apenas a data inicial no calendário
+if isinstance(date_selection, (tuple, list)):
+    if len(date_selection) == 2:
+        start_date, end_date = date_selection
+    elif len(date_selection) == 1:
+        start_date = end_date = date_selection[0]
+    else:
+        start_date, end_date = min_date, max_date
+else:
+    start_date = end_date = date_selection
 
 # Filtro de Atendente
-owners = ["Todos"] + sorted([x for x in df['owner'].dropna().unique() if x != ""])
+owners = ["Todos"] + sorted([str(x) for x in df['owner'].dropna().unique() if str(x).strip() != ""])
 selected_owner = st.sidebar.selectbox("Atendente", owners)
 
 # Aplicar Filtros aos Dados
@@ -54,7 +77,6 @@ if selected_owner != "Todos":
     filtered_df = filtered_df[filtered_df['owner'] == selected_owner]
 
 # 4. Cálculo dos KPIs Principais
-# Chamados do mês atual vs acumulados anteriores
 entradas_mes = filtered_df[filtered_df['createdDate'] >= '2026-09-01']
 pendentes_anteriores = filtered_df[filtered_df['createdDate'] < '2026-09-01']
 
@@ -76,7 +98,7 @@ taxa_reabertura = (reopened_count / total_resolvidos * 100) if total_resolvidos 
 tma_ativo = resolved_df['lifetimeWorkingTime'].mean() if total_resolvidos > 0 else 0
 
 # 5. Interface Principal
-st.title("📊 Painel Executivo de Atendimento ao Cliente")
+st.title("Painel Executivo de Atendimento ao Cliente")
 st.markdown("Análise de capacidade da equipe, SLA de solução e qualidade dos chamados.")
 st.markdown("---")
 
@@ -107,14 +129,29 @@ st.markdown("---")
 col_chart1, col_chart2 = st.columns([6, 4])
 
 with col_chart1:
-    st.subheader("📈 Volume Diário: Criados vs Resolvidos")
+    st.subheader("Volume Diário: Criados vs Resolvidos")
     
     # Agrupamento diário
-    df_created_daily = filtered_df.groupby(filtered_df['createdDate'].dt.date).size().reset_index(name='Criados')
-    df_resolved_daily = resolved_df.groupby(resolved_df['resolvedIn'].dt.date).size().reset_index(name='Resolvidos')
+    df_created_daily = (
+        filtered_df.dropna(subset=['createdDate'])
+        .groupby(filtered_df['createdDate'].dt.date)
+        .size()
+        .reset_index(name='Criados')
+        .rename(columns={'createdDate': 'Data'})
+    )
     
-    df_daily = pd.merge(df_created_daily, df_resolved_daily, left_on='createdDate', right_on='resolvedIn', how='outer').fillna(0)
-    df_daily['Data'] = df_daily['createdDate'].combine_first(df_daily['resolvedIn'])
+    df_resolved_daily = (
+        resolved_df.dropna(subset=['resolvedIn'])
+        .groupby(resolved_df['resolvedIn'].dt.date)
+        .size()
+        .reset_index(name='Resolvidos')
+        .rename(columns={'resolvedIn': 'Data'})
+    )
+    
+    # Merge mantendo o tipo de data intacto
+    df_daily = pd.merge(df_created_daily, df_resolved_daily, on='Data', how='outer')
+    df_daily['Criados'] = df_daily['Criados'].fillna(0)
+    df_daily['Resolvidos'] = df_daily['Resolvidos'].fillna(0)
     df_daily = df_daily.sort_values('Data')
     
     fig_flow = px.line(
@@ -127,7 +164,7 @@ with col_chart1:
     st.plotly_chart(fig_flow, use_container_width=True)
 
 with col_chart2:
-    st.subheader("📌 Pendentes por Status Atual")
+    st.subheader("Pendentes por Status Atual")
     unresolved_df = filtered_df[~filtered_df['baseStatus'].isin(['Resolved', 'Closed'])]
     
     if not unresolved_df.empty:
@@ -143,7 +180,7 @@ with col_chart2:
 
 # Linha 3: Tabela de Desempenho por Agente
 st.markdown("---")
-st.subheader("👥 Desempenho por Agente")
+st.subheader("Desempenho por Agente")
 
 if not resolved_df.empty:
     agent_summary = resolved_df.groupby('owner').agg(
@@ -170,6 +207,5 @@ if not resolved_df.empty:
         use_container_width=True
     )
 
-# Detalhamento dos dados em tabela expansível
-with st.expander("📋 Ver Base de Dados Filtrada"):
+with st.expander("Ver Base de Dados Filtrada"):
     st.dataframe(filtered_df)
