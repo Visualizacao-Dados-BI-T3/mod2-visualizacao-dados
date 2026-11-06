@@ -1,0 +1,4 @@
+Pedido,Data,Produto,Categoria,Quantidade,Preco_Unitario
+101,2026-11-04,Notebook,Eletronicos,2,3500
+102,2026-11-04,Mouse,Acessorios,5,80
+103,2026-11-04,Teclado,Perifericos,4,150
