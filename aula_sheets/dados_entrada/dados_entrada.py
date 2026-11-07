@@ -7,13 +7,15 @@ from gspread_dataframe import set_with_dataframe
 from gspread.exceptions import WorksheetNotFound
 
 # Se a variável de ambiente existir (no GitHub), cria o arquivo temporário
-if "GCP_SA_KEY" in os.environ:
+if os.environ.get("GCP_SA_KEY"):
     with open("credentials_temp.json", "w") as f:
         f.write(os.environ["GCP_SA_KEY"])
     cred_file = "credentials_temp.json"
 else:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        raise RuntimeError("Configure o secret GCP_SA_KEY com o JSON da conta de serviço no GitHub.")
     # Rodando localmente na sua máquina
-    cred_file = "senai-512823-2179a0ece3af.json"
+    # cred_file = "senai-512823-2179a0ece3af.json"
 
 # --- Leitura dos CSVs ---
 PASTA = Path("dados_entrada")

@@ -23,6 +23,6 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Atualizar Google Sheets
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
         run: python dados_entrada/dados_entrada.py
