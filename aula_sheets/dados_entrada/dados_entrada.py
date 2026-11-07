@@ -45,6 +45,8 @@ sh = gc.open("HR_Profs_Horistas")
 # worksheet = sh.get_worksheet(0)
 # print(worksheet.get_values())
 
-worksheet = sh.add_worksheet(title="b", rows=100, cols=20)
+# worksheet = sh.add_worksheet(title="b", rows=100, cols=20)
+
+worksheet = sh.get_worksheet(2)
 
 set_with_dataframe(worksheet, df_vendas)

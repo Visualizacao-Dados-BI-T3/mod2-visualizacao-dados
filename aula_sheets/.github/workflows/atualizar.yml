@@ -1,0 +1,25 @@
+name: Atualizar planilha
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '58 0 * * *' # 21:58 em Teresina (UTC-3) / 00:58 UTC do dia seguinte
+
+concurrency:
+  group: sheets-diario
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Atualizar Google Sheets
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: python dados_entrada/dados_entrada.py
